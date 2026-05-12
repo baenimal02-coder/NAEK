@@ -1,0 +1,208 @@
+content = """<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>연구원 랩투어 그룹 조회</title>
+    <style>
+        :root {
+            --primary: #0055a5; /* KIMM Blue or professional blue */
+            --accent: #eef2ff;
+            --text-main: #1e293b;
+            --text-sub: #64748b;
+        }
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Malgun Gothic", sans-serif;
+            background-color: #f1f5f9;
+            margin: 0;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .app-container {
+            width: 100%;
+            max-width: 420px;
+            background: white;
+            padding: 28px;
+            border-radius: 20px;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
+        }
+        header { text-align: center; margin-bottom: 30px; }
+        h1 { font-size: 1.4rem; color: var(--text-main); margin: 0; }
+        p.subtitle { color: var(--text-sub); font-size: 0.9rem; margin-top: 8px; }
+        
+        .search-box {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 25px;
+        }
+        input {
+            flex: 1;
+            padding: 14px;
+            border: 2px solid #e2e8f0;
+            border-radius: 12px;
+            font-size: 16px;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+        input:focus { border-color: var(--primary); }
+        button {
+            padding: 0 20px;
+            background: var(--primary);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        #result-area { display: none; border-top: 1px solid #f1f5f9; padding-top: 25px; animation: fadeIn 0.3s ease-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+        .group-info { text-align: center; margin-bottom: 25px; }
+        .group-label { font-size: 0.9rem; color: var(--text-sub); font-weight: 600; }
+        .group-name { font-size: 3.5rem; font-weight: 900; color: var(--primary); line-height: 1; margin: 10px 0; }
+        .leader-info { display: inline-block; padding: 6px 16px; background: var(--accent); border-radius: 20px; color: var(--primary); font-weight: 600; font-size: 0.95rem; }
+
+        .tour-path { background: #fafafa; border-radius: 16px; padding: 20px; list-style: none; margin: 0; }
+        .path-step { display: flex; align-items: flex-start; margin-bottom: 15px; position: relative; }
+        .path-step:last-child { margin-bottom: 0; }
+        .path-step:not(:last-child)::after {
+            content: '';
+            position: absolute;
+            left: 12px;
+            top: 24px;
+            height: calc(100% - 10px);
+            border-left: 2px dashed #cbd5e1;
+        }
+        .step-num {
+            width: 26px; height: 26px;
+            background: var(--primary);
+            color: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.8rem;
+            font-weight: bold;
+            margin-right: 15px;
+            flex-shrink: 0;
+            z-index: 1;
+        }
+        .step-text { color: var(--text-main); font-weight: 500; font-size: 1.05rem; padding-top: 2px; }
+
+        .not-found { text-align: center; color: #ef4444; font-weight: 500; padding: 20px; }
+
+        footer { text-align: center; margin-top: 40px; font-size: 0.8rem; color: #94a3b8; }
+    </style>
+</head>
+<body>
+
+<div class="app-container">
+    <header>
+        <h1>랩투어 그룹 및 동선 조회</h1>
+        <p class="subtitle">성함을 입력하여 본인의 그룹을 확인하세요.</p>
+    </header>
+
+    <div class="search-box">
+        <input type="text" id="nameInput" placeholder="이름을 입력하세요" autocomplete="off" onkeypress="if(event.keyCode==13) doSearch()">
+        <button onclick="doSearch()">조회</button>
+    </div>
+
+    <div id="result-area"></div>
+
+    <footer>
+        &copy; Korea Institute of Machinery and Materials
+    </footer>
+</div>
+
+<script>
+    // 1. 투어 데이터 정의
+    const TOUR_CONFIG = {
+        'A': {
+            leader: '김건',
+            path: ['(L5동) 옥상온실', '가스터빈', '(L3동) AI쇼룸', '(L2동) 카이로스']
+        },
+        'B': {
+            leader: '양일권',
+            path: ['(L5동) 가스터빈', '옥상온실', '(L2동) 카이로스', '(L3동) AI쇼룸']
+        },
+        'C': {
+            leader: '이광섭',
+            path: ['(L3동) AI쇼룸', '(L2동) 카이로스', '(L5동) 가스터빈', '옥상온실']
+        },
+        'D': {
+            leader: '배상호',
+            path: ['(L2동) 카이로스', '(L3동) AI쇼룸', '(L5동) 옥상온실', '가스터빈']
+        }
+    };
+
+    // 2. 명단 데이터 (이미지 텍스트 추출 결과)
+    const MEMBER_LIST = {
+        '김효진': 'A', '김도윤': 'A', '정태근': 'A', '배건희': 'A', '구자윤': 'A', '권석준': 'A', '전수정': 'A', '최원형': 'A', '김수민': 'A', '이선호': 'A', '홍현준': 'A', '남경빈': 'A', '박수혜': 'A', '이나원': 'A', '장민서': 'A', '민정윤': 'A', '손다인': 'A',
+        '김시연': 'B', '전서희': 'B', '조현수': 'B', '채민정': 'B', '이상곤': 'B', '문선빈': 'B', '이나현': 'B', '성현중': 'B', '차지혜': 'B', '김효정': 'B', '박신후': 'B', '김다빈': 'B', '황성연': 'B', '김창준': 'B', '이명섭': 'B', '김주혁': 'B',
+        '남효근': 'C', '오유림': 'C', '이하린': 'C', '최연우': 'C', '이종원': 'C', '정은빈': 'C', '김경태': 'C', '박정민': 'C', '이재우': 'C', '권민주': 'C', '김준형': 'C', '박상헌': 'C', '김희주': 'C', '김가영': 'C', '김예진': 'C', '김규리': 'C', '홍채원': 'C',
+        '백재은': 'D', '유서현': 'D', '정재은': 'D', '송윤재': 'D', '정상원': 'D', '인지훈': 'D', '장윤정': 'D', '장호진': 'D', '최주영': 'D', '조동현': 'D', '홍창기': 'D', '민하영': 'D', '김현증': 'D', '왕우진': 'D', '유재연': 'D', '박주민': 'D'
+    };
+
+    function doSearch() {
+        const input = document.getElementById('nameInput');
+        const name = input.value.trim();
+        const resultArea = document.getElementById('result-area');
+        
+        if (!name) return;
+
+        const groupKey = MEMBER_LIST[name];
+        
+        if (groupKey) {
+            const info = TOUR_CONFIG[groupKey];
+            let pathHtml = info.path.map((loc, idx) => `
+                <div class="path-step">
+                    <div class="step-num">${idx + 1}</div>
+                    <div class="step-text">${loc}</div>
+                </div>
+            `).join('');
+
+            resultArea.innerHTML = `
+                <div class="group-info">
+                    <div class="group-label">당신의 그룹</div>
+                    <div class="group-name">${groupKey}그룹</div>
+                    <div class="leader-info">인솔자: ${info.leader}</div>
+                </div>
+                <div class="tour-path">
+                    ${pathHtml}
+                </div>
+            `;
+            
+            // Firebase Firestore 실시간 로그 기록 (선택 사항)
+            // logToFirebase(name, groupKey);
+            
+        } else {
+            resultArea.innerHTML = `<div class="not-found">명단에 없습니다.<br>성함을 다시 확인해 주세요.</div>`;
+        }
+        
+        resultArea.style.display = 'block';
+    }
+
+    // Firebase 연동 함수 예시
+    /*
+    function logToFirebase(name, group) {
+        const db = firebase.firestore();
+        db.collection("checkins").add({
+            name: name,
+            group: group,
+            timestamp: firebase.firestore.FieldValue.serverTimestamp()
+        });
+    }
+    */
+</script>
+
+</body>
+</html>
+"""
+
+with open("index.html", "w", encoding="utf-8") as f:
+    f.write(content)
